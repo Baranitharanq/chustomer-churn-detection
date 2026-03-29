@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Customer Churn Detector — AI Dashboard</title>
+  <meta name="description" content="Real-time ML-powered customer churn prediction dashboard built with FastAPI."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #080c14;
+      --bg2:      #0f1421;
+      --bg3:      #161d2e;
+      --card:     #1a2236;
+      --border:   #2a3555;
+      --accent:   #6c7fff;
+      --accent2:  #a78bfa;
+      --green:    #10d993;
+      --yellow:   #fbbf24;
+      --red:      #f43f5e;
+      --text:     #e2e8f0;
+      --muted:    #7a8ab0;
+      --radius:   16px;
+      --glow-g:   0 0 24px rgba(16,217,147,.25);
+      --glow-r:   0 0 24px rgba(244,63,94,.25);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    .sidebar {
+      width: 300px;
+      min-height: 100vh;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      padding: 0 0 24px 0;
+      display: flex;
+      flex-direction: column;
+      position: sticky; top: 0; height: 100vh;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .sidebar-logo {
+      padding: 28px 24px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo h1 {
+      font-size: 18px; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .sidebar-logo p { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    .form-section { padding: 18px 20px 0; }
+    .form-section h3 {
+      font-size: 10px; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 12px; padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .field { margin-bottom: 10px; }
+    .field label {
+      display: block; font-size: 12px; color: var(--muted);
+      margin-bottom: 4px; font-weight: 500;
+    }
+    .field select, .field input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .field select:focus, .field input:focus { border-color: var(--accent); }
+    .field input[type=range] {
+      padding: 0; border: none; background: none;
+      accent-color: var(--accent);
+    }
+    .range-val { font-size: 13px; color: var(--accent); font-weight: 600; }
+
+    .btn-predict {
+      margin: 20px 20px 0;
+      width: calc(100% - 40px);
+      padding: 13px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 12px;
+      color: #fff; font-size: 15px; font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: opacity .2s, transform .15s;
+      letter-spacing: .02em;
+    }
+    .btn-predict:hover { opacity: .9; transform: translateY(-1px); }
+    .btn-predict:active { transform: translateY(0); }
+
+    /* ── Main content ─────────────────────────────────────────── */
+    .main { flex: 1; padding: 32px 32px 48px; overflow-x: hidden; }
+
+    /* Hero banner */
+    .hero {
+      background: linear-gradient(135deg, #151f38 0%, #1a1040 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .hero h2 { font-size: 26px; font-weight: 800; }
+    .hero h2 span {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p { color: var(--muted); font-size: 14px; margin-top: 6px; }
+    .model-badge {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      text-align: center;
+      font-size: 12px; color: var(--muted);
+    }
+    .model-badge strong { display: block; color: var(--text); font-size: 14px; margin-top: 2px; }
+
+    /* Prediction result area */
+    #result-section { display: none; margin-bottom: 28px; }
+    .result-grid { display: grid; grid-template-columns: 240px 1fr 1fr; gap: 20px; }
+
+    /* Gauge */
+    .gauge-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center;
+    }
+    .gauge-title { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 20px; }
+    .gauge-svg { width: 180px; height: 110px; }
+
+    /* Verdict card */
+    .verdict-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .verdict-box {
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      transition: all .4s ease;
+    }
+    .verdict-churn   { background: linear-gradient(135deg,#2d0a18,#4a1020); border: 2px solid var(--red);   color: var(--red);   box-shadow: var(--glow-r); }
+    .verdict-nochurn { background: linear-gradient(135deg,#092b1f,#133a28); border: 2px solid var(--green); color: var(--green); box-shadow: var(--glow-g); }
+
+    .stat-pills { display: flex; gap: 10px; }
+    .pill {
+      flex: 1; background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .pill-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .pill-value { font-size: 20px; font-weight: 800; margin-top: 4px; }
+
+    /* Risk factors */
+    .factors-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .factors-card h3 { font-size: 13px; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; }
+    .factor-item {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+    }
+    .factor-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-high   { background: var(--red); }
+    .dot-medium { background: var(--yellow); }
+    .dot-low    { background: var(--green); }
+
+    /* Model Performance */
+    .section-title {
+      font-size: 18px; font-weight: 700;
+      margin-bottom: 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-title span { font-size: 18px; }
+
+    .perf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .perf-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .perf-card h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 14px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .bar-label { font-size: 12px; color: var(--text); width: 110px; flex-shrink: 0; }
+    .bar-bg { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease; }
+    .bar-val { font-size: 12px; font-weight: 600; width: 42px; text-align: right; flex-shrink: 0; }
+
+    /* Batch upload */
+    .batch-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 36px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); background: rgba(108,127,255,.05); }
+    .dropzone p { color: var(--muted); font-size: 14px; margin-top: 10px; }
+    .dropzone .icon { font-size: 36px; }
+    #batch-file { display: none; }
+    .btn-batch {
+      margin-top: 16px;
+      padding: 11px 28px;
+      background: var(--accent);
+      border: none; border-radius: 10px;
+      color: #fff; font-size: 14px; font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .btn-batch:hover { opacity: .85; }
+    .btn-batch:disabled { opacity: .4; cursor: default; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg3); }
+    .tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .tag-high   { background: rgba(244,63,94,.15); color: var(--red); }
+    .tag-medium { background: rgba(251,191,36,.15); color: var(--yellow); }
+    .tag-low    { background: rgba(16,217,147,.15); color: var(--green); }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 20px;
+      font-size: 14px; color: var(--text);
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+      transform: translateY(120%); opacity: 0;
+      transition: all .35s cubic-bezier(.4,0,.2,1);
+      z-index: 999;
+      display: flex; align-items: center; gap: 10px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: relative; }
+      .result-grid { grid-template-columns: 1fr; }
+      .perf-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* Animated gradient border on result */
+    @keyframes borderGlow {
+      0%,100% { border-color: var(--accent); }
+      50% { border-color: var(--accent2); }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <h1>📉 Churn Detector</h1>
+      <p>ML-Powered · Real-Time Risk Scoring</p>
+    </div>
+
+    <!-- Profile -->
+    <div class="form-section">
+      <h3>👤 Customer Profile</h3>
+
+      <div class="field">
+        <label for="gender">Gender</label>
+        <select id="gender"><option>Male</option><option>Female</option></select>
+      </div>
+      <div class="field">
+        <label>Age: <span class="range-val" id="age-val">35</span></label>
+        <input type="range" id="age" min="18" max="80" value="35" oninput="document.getElementById('age-val').textContent=this.value"/>
+      </div>
+      <div class="field">
+        <label for="senior">Senior Citizen</label>
+        <select id="senior"><option value="0">No</option><option value="1">Yes</option></select>
+      </div>
+      <div class="field">
+        <label for="partner">Has Partner</label>
+        <select id="partner"><option>Yes</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="dependents">Has Dependents</label>
+        <select id="dependents"><option>Yes</option><option>No</option></select>
+      </div>
+    </div>
+
+    <!-- Services -->
+    <div class="form-section">
+      <h3>📦 Services</h3>
+      <div class="field">
+        <label>Tenure (months): <span class="range-val" id="tenure-val">12</span></label>
+        <input type="range" id="tenure" min="1" max="72" value="12" oninput="document.getElementById('tenure-val').textContent=this.value"/>
+      </div>
+      <div class="field">
+        <label for="phone">Phone Service</label>
+        <select id="phone"><option>Yes</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="lines">Multiple Lines</label>
+        <select id="lines"><option>Yes</option><option>No</option><option>No phone service</option></select>
+      </div>
+      <div class="field">
+        <label for="internet">Internet Service</label>
+        <select id="internet"><option>DSL</option><option>Fiber optic</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="security">Online Security</label>
+        <select id="security"><option>Yes</option><option>No</option><option>No internet service</option></select>
+      </div>
+      <div class="field">
+        <label for="tech">Tech Support</label>
+        <select id="tech"><option>Yes</option><option>No</option><option>No internet service</option></select>
+      </div>
+      <div class="field">
+        <label for="streaming">Streaming TV</label>
+        <select id="streaming"><option>Yes</option><option>No</option><option>No internet service</option></select>
+      </div>
+      <div class="field">
+        <label>Num Services: <span class="range-val" id="nsvc-val">3</span></label>
+        <input type="range" id="nsvc" min="1" max="6" value="3" oninput="document.getElementById('nsvc-val').textContent=this.value"/>
+      </div>
+    </div>
+
+    <!-- Billing -->
+    <div class="form-section">
+      <h3>💳 Billing</h3>
+      <div class="field">
+        <label for="contract">Contract</label>
+        <select id="contract">
+          <option>Month-to-month</option>
+          <option>One year</option>
+          <option>Two year</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="paperless">Paperless Billing</label>
+        <select id="paperless"><option>Yes</option><option>No</option></select>
+      </div>
+      <div class="field">
+        <label for="payment">Payment Method</label>
+        <select id="payment">
+          <option>Electronic check</option>
+          <option>Mailed check</option>
+          <option>Bank transfer</option>
+          <option>Credit card</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="monthly">Monthly Charges ($)</label>
+        <input type="number" id="monthly" min="10" max="150" value="65" step="0.5"/>
+      </div>
+      <div class="field">
+        <label for="total">Total Charges ($)</label>
+        <input type="number" id="total" min="0" max="10000" value="780" step="1"/>
+      </div>
+    </div>
+
+    <button class="btn-predict" id="predictBtn" onclick="runPredict()">
+      🔮 Predict Churn
+    </button>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div>
+        <h2>Customer <span>Churn Detection</span></h2>
+        <p>Configure the customer profile on the left, then hit Predict Churn.</p>
+      </div>
+      <div class="model-badge">
+        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Active Model</span>
+        <strong id="modelLabel">{{ model_name }}</strong>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div id="result-section">
+      <div class="result-grid">
+
+        <!-- Gauge -->
+        <div class="gauge-card">
+          <div class="gauge-title">Churn Probability</div>
+          <svg class="gauge-svg" viewBox="0 0 200 120" id="gauge-svg">
+            <!-- Track -->
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stop-color="#10d993"/>
+                <stop offset="50%"  stop-color="#fbbf24"/>
+                <stop offset="100%" stop-color="#f43f5e"/>
+              </linearGradient>
+            </defs>
+            <path d="M20 110 A 90 90 0 0 1 180 110" fill="none" stroke="#1a2236" stroke-width="14" stroke-linecap="round"/>
+            <path id="gauge-arc" d="M20 110 A 90 90 0 0 1 180 110" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round"
+                  stroke-dasharray="283" stroke-dashoffset="283" style="transition: stroke-dashoffset 1s ease;"/>
+            <text id="gauge-text" x="100" y="90" text-anchor="middle" font-size="28" font-weight="800" fill="#e2e8f0" font-family="Inter">0%</text>
+            <text x="20" y="120" text-anchor="middle" font-size="10" fill="#7a8ab0">0%</text>
+            <text x="180" y="120" text-anchor="middle" font-size="10" fill="#7a8ab0">100%</text>
+          </svg>
+        </div>
+
+        <!-- Verdict -->
+        <div class="verdict-card">
+          <div class="verdict-box verdict-nochurn" id="verdict-box">✅ NOT CHURNING</div>
+          <div class="stat-pills">
+            <div class="pill">
+              <div class="pill-label">Risk Level</div>
+              <div class="pill-value" id="risk-val" style="color: var(--green)">—</div>
+            </div>
+            <div class="pill">
+              <div class="pill-label">Probability</div>
+              <div class="pill-value" id="prob-val" style="color: var(--green)">—%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Factors -->
+        <div class="factors-card">
+          <h3>🔑 Key Risk Factors</h3>
+          <div id="factors-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model Performance -->
+    <div class="section-title"><span>📊</span> Model Performance Overview</div>
+    <div class="perf-grid" id="perf-grid">
+      <div class="perf-card" style="grid-column:1/-1; text-align:center; color:var(--muted); padding:40px;">
+        Loading model metrics…
+      </div>
+    </div>
+
+    <!-- Batch Prediction -->
+    <div class="section-title"><span>📂</span> Batch Prediction</div>
+    <div class="batch-card">
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('batch-file').click()"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="handleDrop(event)">
+        <div class="icon">📁</div>
+        <p><strong>Drop a CSV file here</strong> or click to browse</p>
+        <p style="font-size:12px; margin-top:4px;">Same format as raw data (excluding CustomerID/Churn optional)</p>
+      </div>
+      <input type="file" id="batch-file" accept=".csv" onchange="handleFileSelect(event)"/>
+      <div style="margin-top:14px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <button class="btn-batch" id="batch-btn" onclick="runBatch()" disabled>Upload &amp; Predict</button>
+        <span id="batch-filename" style="font-size:13px; color:var(--muted)">No file selected</span>
+      </div>
+      <div class="table-wrap" id="batch-results" style="display:none;"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let batchFile = null;
+
+// ── Gauge helpers ──────────────────────────────────────────────────────────
+function setGauge(prob) {
+  const arc = document.getElementById('gauge-arc');
+  const txt = document.getElementById('gauge-text');
+  const total = 283; // approximate arc circumference for the semicircle
+  const offset = total - (prob * total);
+  arc.style.strokeDashoffset = offset;
+  txt.textContent = Math.round(prob * 100) + '%';
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(msg, color='var(--text)') {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<span style="color:${color}">${msg}</span>`;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── Risk factor detection ──────────────────────────────────────────────────
+function buildFactors(data) {
+  const factors = [];
+  if (data.Contract === 'Month-to-month') factors.push({ text: '📋 Month-to-month contract', level: 'high' });
+  if (data.InternetService === 'Fiber optic') factors.push({ text: '🌐 Fiber optic internet', level: 'medium' });
+  if (data.PaymentMethod === 'Electronic check') factors.push({ text: '💳 Electronic check payment', level: 'medium' });
+  if (Number(data.Tenure) < 12) factors.push({ text: '⏳ Short tenure < 1 year', level: 'high' });
+  if (data.OnlineSecurity === 'No') factors.push({ text: '🔒 No online security', level: 'low' });
+  if (data.TechSupport === 'No') factors.push({ text: '🛠️ No tech support', level: 'low' });
+  if (factors.length === 0) factors.push({ text: '✅ No major risk factors', level: 'low' });
+  return factors;
+}
+
+// ── Predict Single ─────────────────────────────────────────────────────────
+async function runPredict() {
+  const btn = document.getElementById('predictBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Predicting…';
+
+  const payload = {
+    Gender: document.getElementById('gender').value,
+    SeniorCitizen: Number(document.getElementById('senior').value),
+    Partner: document.getElementById('partner').value,
+    Dependents: document.getElementById('dependents').value,
+    Age: Number(document.getElementById('age').value),
+    Tenure: Number(document.getElementById('tenure').value),
+    PhoneService: document.getElementById('phone').value,
+    MultipleLines: document.getElementById('lines').value,
+    InternetService: document.getElementById('internet').value,
+    OnlineSecurity: document.getElementById('security').value,
+    TechSupport: document.getElementById('tech').value,
+    StreamingTV: document.getElementById('streaming').value,
+    Contract: document.getElementById('contract').value,
+    PaperlessBilling: document.getElementById('paperless').value,
+    PaymentMethod: document.getElementById('payment').value,
+    NumServices: Number(document.getElementById('nsvc').value),
+    MonthlyCharges: Number(document.getElementById('monthly').value),
+    TotalCharges: Number(document.getElementById('total').value),
+  };
+
+  try {
+    const res = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      showToast('❌ ' + (err.detail || 'Prediction failed'), 'var(--red)');
+      return;
+    }
+
+    const data = await res.json();
+    showResult(data, payload);
+    showToast('✅ Prediction complete!', 'var(--green)');
+  } catch (e) {
+    showToast('❌ Cannot connect to API. Is the server running?', 'var(--red)');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔮 Predict Churn';
+  }
+}
+
+function showResult(data, payload) {
+  const sec = document.getElementById('result-section');
+  sec.style.display = 'block';
+  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const prob = data.churn_probability;
+  const isChurn = data.churn_prediction === 1;
+  const risk = data.risk_level;
+  const color = risk === 'High' ? 'var(--red)' : risk === 'Medium' ? 'var(--yellow)' : 'var(--green)';
+
+  setGauge(prob);
+
+  const vbox = document.getElementById('verdict-box');
+  vbox.className = 'verdict-box ' + (isChurn ? 'verdict-churn' : 'verdict-nochurn');
+  vbox.innerHTML = isChurn ? '⚠️ WILL CHURN' : '✅ NOT CHURNING';
+
+  const riskEl = document.getElementById('risk-val');
+  riskEl.textContent = risk;
+  riskEl.style.color = color;
+
+  const probEl = document.getElementById('prob-val');
+  probEl.textContent = (prob * 100).toFixed(1) + '%';
+  probEl.style.color = color;
+
+  // Factors
+  const fl = document.getElementById('factors-list');
+  fl.innerHTML = buildFactors(payload).map(f => `
+    <div class="factor-item">
+      <div class="factor-dot dot-${f.level}"></div>
+      ${f.text}
+    </div>
+  `).join('');
+}
+
+// ── Model Performance ──────────────────────────────────────────────────────
+async function loadPerformance() {
+  try {
+    const res = await fetch('/model/summary');
+    const data = await res.json();
+    const grid = document.getElementById('perf-grid');
+
+    if (!data.available || data.data.length === 0) {
+      grid.innerHTML = '<div class="perf-card" style="grid-column:1/-1;text-align:center;color:var(--muted);padding:40px;">Run training pipeline to see metrics.</div>';
+      return;
+    }
+
+    const metrics = [
+      { key: 'auc', label: 'AUC', color: 'linear-gradient(90deg,#6c7fff,#a78bfa)' },
+      { key: 'accuracy', label: 'Accuracy', color: 'linear-gradient(90deg,#10d993,#06b6d4)' },
+      { key: 'f1', label: 'F1 Score', color: 'linear-gradient(90deg,#fbbf24,#f97316)' },
+    ];
+
+    grid.innerHTML = metrics.map(m => `
+      <div class="perf-card">
+        <h4>${m.label}</h4>
+        ${data.data.map(row => `
+          <div class="bar-row">
+            <div class="bar-label">${row.model}</div>
+            <div class="bar-bg">
+              <div class="bar-fill" data-pct="${(row[m.key]*100).toFixed(1)}"
+                   style="width:0%;background:${m.color}"></div>
+            </div>
+            <div class="bar-val" style="color:var(--text)">${(row[m.key]*100).toFixed(1)}%</div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+
+    // Animate bars
+    setTimeout(() => {
+      document.querySelectorAll('.bar-fill').forEach(el => {
+        el.style.width = el.dataset.pct + '%';
+      });
+    }, 100);
+
+  } catch(e) {
+    document.getElementById('perf-grid').innerHTML =
+      '<div class="perf-card" style="grid-column:1/-1;text-align:center;color:var(--muted);padding:40px;">Could not load metrics.</div>';
+  }
+}
+
+// ── Batch Prediction ───────────────────────────────────────────────────────
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) setFile(file);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) setFile(file);
+  else showToast('❌ Please drop a CSV file', 'var(--red)');
+}
+
+function setFile(file) {
+  batchFile = file;
+  document.getElementById('batch-filename').textContent = file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
+  document.getElementById('batch-btn').disabled = false;
+}
+
+async function runBatch() {
+  if (!batchFile) return;
+  const btn = document.getElementById('batch-btn');
+  btn.disabled = true; btn.textContent = 'Processing…';
+
+  const form = new FormData();
+  form.append('file', batchFile);
+
+  try {
+    const res = await fetch('/predict/batch', { method: 'POST', body: form });
+    if (!res.ok) { showToast('❌ Batch prediction failed', 'var(--red)'); return; }
+
+    const text = await res.text();
+    const rows = text.trim().split('\n').map(r => r.split(','));
+    const headers = rows[0];
+    const body = rows.slice(1);
+
+    // render table
+    const wrap = document.getElementById('batch-results');
+    wrap.style.display = 'block';
+    wrap.innerHTML = `
+      <table>
+        <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${body.map(row => `
+            <tr>${row.map((cell, i) => {
+              if (headers[i] === 'RiskLevel') {
+                const cls = cell === 'High' ? 'high' : cell === 'Medium' ? 'medium' : 'low';
+                return `<td><span class="tag tag-${cls}">${cell}</span></td>`;
+              }
+              if (headers[i] === 'ChurnPrediction') {
+                return `<td style="color:${cell==='1'?'var(--red)':'var(--green)'};font-weight:700">${cell==='1'?'Churn':'No Churn'}</td>`;
+              }
+              return `<td>${cell}</td>`;
+            }).join('')}</tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:14px">
+        <button class="btn-batch" onclick="downloadCSV()">⬇️ Download Results</button>
+      </div>
+    `;
+
+    window._batchCSV = { text, filename: 'churn_predictions.csv' };
+    showToast('✅ Batch prediction complete!', 'var(--green)');
+  } catch(e) {
+    showToast('❌ Error during batch prediction', 'var(--red)');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Upload & Predict';
+  }
+}
+
+function downloadCSV() {
+  if (!window._batchCSV) return;
+  const blob = new Blob([window._batchCSV.text], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = window._batchCSV.filename;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadPerformance();
+</script>
+</body>
+</html>
